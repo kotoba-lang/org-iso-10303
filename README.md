@@ -19,6 +19,7 @@ repo restores the legacy `kami-cad` BREP kernel under a collision-free name.
 | `brep.feature` | `feature` | Parametric feature tree (sketch/extrude/revolve/fillet/chamfer/sweep/loft/shell/pattern/boolean) |
 | `brep.assembly` | `assembly` | Part instances, assembly constraints, BOM extraction |
 | `brep.tessellate` | `tessellate` | BREP solid -> triangle mesh, volume/surface-area estimates |
+| `brep.config` | (new) | EDN-authority tessellation LOD + epsilon constants (`resources/brep/tessellation.edn`), consumed by `brep.kernel`/`brep.tessellate` in place of inline magic numbers |
 
 f64 precision throughout (`[x y z]` 3-vectors, glam::DVec3 in the
 original) for CAD-grade accuracy. Depends on `kotoba-lang/engineer` for
@@ -29,8 +30,18 @@ shared contracts (sketch constraint kind vocabulary mirrors
 
 Restored — all 4 modules ported from the original 1194-line Rust `lib.rs`,
 with all 9 original Rust unit tests mirrored 1:1 in `test/brep_test.cljc`
-(+1 smoke test) — 10 tests / 58 assertions, 0 failures. Pure data + pure
-functions throughout; no IO/GPU.
+(+1 smoke test), plus additional coverage for `brep.kernel` vector math,
+curve evaluation, feature-tree edge cases, and the `brep.config` EDN
+authority sync check that weren't exercised by the original Rust test
+suite — 22 tests / 88 assertions, 0 failures. Pure data + pure functions
+throughout; no IO/GPU.
+
+Tessellation LOD constants (cylinder/sphere segment counts) and epsilon
+thresholds (point-merge, knot-denominator) live in `brep.config` — a
+portable inline mirror of the EDN authority at
+`resources/brep/tessellation.edn` — rather than as magic numbers inline
+in `brep.kernel`/`brep.tessellate`. `brep.config-loader` (JVM-only) and
+the `edn-matches-resource` test keep the two in sync.
 
 `brep.tessellate` was split out from `brep.kernel` to avoid a circular
 dependency the original Rust crate had (`brep.rs`'s `volume`/
@@ -50,4 +61,5 @@ TODOs — full BREP boolean requires a proper boolean kernel).
 
 ```bash
 clojure -M:test
+clojure -M:lint
 ```
