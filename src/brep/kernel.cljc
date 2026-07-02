@@ -3,7 +3,8 @@
   shell, solid, plus analytic/freeform curve & surface definitions.
   Restored from kami-cad's `brep` module (kami-engine/kami-cad/src/lib.rs,
   deleted PR #82). Points/vectors are `[x y z]` 3-vectors (glam::DVec3 in
-  the original) — f64 precision throughout for CAD-grade accuracy.")
+  the original) — f64 precision throughout for CAD-grade accuracy."
+  (:require [brep.config :as config]))
 
 ;; ── vector helpers (DVec3 equivalent) ──
 
@@ -60,7 +61,7 @@
            (fn [d j]
              (let [idx (+ (- k p) j)
                    denom (- (nth ks (+ idx p 1 (- r))) (nth ks idx))]
-               (if (< (Math/abs denom) 1e-14)
+               (if (< (Math/abs denom) config/epsilon-knot-denominator)
                  d
                  (let [alpha (/ (- t-clamped (nth ks idx)) denom)]
                    (assoc d j (v+ (v-scale (nth d (dec j)) (- 1.0 alpha))

@@ -6,7 +6,8 @@
   dependency the original Rust crate had via `super::tessellate` calls
   from within `brep.rs` — here `volume`/`surface-area` live alongside the
   tessellator that produces their input mesh)."
-  (:require [brep.kernel :as k]))
+  (:require [brep.kernel :as k]
+            [brep.config :as config]))
 
 (defn- tessellate-planar-face
   "Fan triangulation for a planar face (convex assumption for outer wire).
@@ -29,7 +30,7 @@
                                       (:end-vertex edge)
                                       (:start-vertex edge))
                                p (get vert-map next)]
-                           [(if (and p (or (empty? polygon) (> (k/v-distance (peek polygon) p) 1e-12)))
+                           [(if (and p (or (empty? polygon) (> (k/v-distance (peek polygon) p) config/epsilon-point-merge)))
                               (conj polygon p)
                               polygon)
                             next])
@@ -37,7 +38,7 @@
                      [(if start-p [start-p] []) (:start-vertex first-edge)]
                      wire)
                     polygon (if (and (> (count polygon) 1)
-                                      (< (k/v-distance (first polygon) (peek polygon)) 1e-12))
+                                      (< (k/v-distance (first polygon) (peek polygon)) config/epsilon-point-merge))
                               (vec (butlast polygon))
                               polygon)]
                 polygon))]
@@ -51,8 +52,8 @@
 
 (defn- tessellate-cylinder-face
   [origin axis radius positions indices]
-  (let [segments 24
-        height 1.0
+  (let [segments config/cylinder-segments
+        height config/cylinder-default-height
         ax (k/v-normalize axis)
         u (if (< (Math/abs (first ax)) 0.9)
             (k/v-normalize (k/v-cross [1.0 0.0 0.0] ax))
@@ -78,7 +79,7 @@
 
 (defn- tessellate-sphere-face
   [center radius positions indices]
-  (let [u-segments 16 v-segments 12
+  (let [u-segments config/sphere-u-segments v-segments config/sphere-v-segments
         base-idx (count positions)
         new-positions (for [j (range (inc v-segments))
                             :let [phi (* Math/PI (/ (double j) v-segments))]
