@@ -51,9 +51,8 @@
             [positions (into indices new-indices)]))))))
 
 (defn- tessellate-cylinder-face
-  [origin axis radius positions indices]
+  [origin axis radius height positions indices]
   (let [segments config/cylinder-segments
-        height config/cylinder-default-height
         ax (k/v-normalize axis)
         u (if (< (Math/abs (first ax)) 0.9)
             (k/v-normalize (k/v-cross [1.0 0.0 0.0] ax))
@@ -102,8 +101,10 @@
 (defn- tessellate-face [face edge-map vert-map positions indices]
   (case (:kind (:surface face))
     :plane (tessellate-planar-face face edge-map vert-map positions indices)
-    :cylinder (let [{:keys [origin axis radius]} (:surface face)]
-                (tessellate-cylinder-face origin axis radius positions indices))
+    :cylinder (let [{:keys [origin axis radius height]} (:surface face)]
+                (tessellate-cylinder-face origin axis radius
+                                          (or height config/cylinder-default-height)
+                                          positions indices))
     :sphere (let [{:keys [center radius]} (:surface face)]
               (tessellate-sphere-face center radius positions indices))
     (tessellate-planar-face face edge-map vert-map positions indices)))

@@ -26,7 +26,15 @@
 
 ;; Surface variants: {:kind :plane :origin :normal} | {:kind :cylinder ...} | etc.
 (defn plane-surface [origin normal] {:kind :plane :origin origin :normal normal})
-(defn cylinder-surface [origin axis radius] {:kind :cylinder :origin origin :axis axis :radius radius})
+(defn cylinder-surface
+  "`height` is optional (nil = tessellate at brep.config's global default,
+  the original behavior) — a bare cylinder-surface has no inherent extent
+  along its axis, so callers that generate a specific cylindrical solid
+  (e.g. brep.kernel/make-cylinder) pass it explicitly."
+  ([origin axis radius] (cylinder-surface origin axis radius nil))
+  ([origin axis radius height]
+   (cond-> {:kind :cylinder :origin origin :axis axis :radius radius}
+     height (assoc :height height))))
 (defn cone-surface [apex axis half-angle] {:kind :cone :apex apex :axis axis :half-angle half-angle})
 (defn sphere-surface [center radius] {:kind :sphere :center center :radius radius})
 (defn torus-surface [center axis major-radius minor-radius]
@@ -135,6 +143,54 @@
          [mn mx]))
      [[##Inf ##Inf ##Inf] [##-Inf ##-Inf ##-Inf]]
      eids)))
+
+(defn make-cylinder
+  "Build a cylindrical solid: two N-segment polygonal cap faces (plane
+  surfaces, N line edges each) + one cylindrical side-wall face
+  (cylinder-surface with explicit `height`). `axis` need not be
+  normalized. Always uses `brep.config/cylinder-segments` for the caps —
+  NOT a caller-supplied count — because `brep.tessellate`'s cylinder-wall
+  tessellation hardcodes that same config value for its own ring point
+  count; a mismatched cap segment count would tessellate a wall that
+  doesn't line up with its caps (a visibly broken, non-watertight mesh).
+  Returns `[solid edges vertices]`, same shape as make-box."
+  [id base-center axis radius height]
+  (let [segments config/cylinder-segments
+        ax (v-normalize axis)
+        u  (if (< (Math/abs (first ax)) 0.9)
+             (v-normalize (v-cross [1.0 0.0 0.0] ax))
+             (v-normalize (v-cross [0.0 1.0 0.0] ax)))
+        v  (v-cross ax u)
+        ring (fn [h] (mapv (fn [i]
+                             (let [theta (* 2.0 Math/PI (/ (double i) segments))]
+                               (v+ base-center
+                                   (v+ (v-scale ax h)
+                                       (v+ (v-scale u (* radius (Math/cos theta)))
+                                           (v-scale v (* radius (Math/sin theta))))))))
+                           (range segments)))
+        bottom-verts (mapv (fn [i p] (brep-vertex (inc i) p)) (range) (ring 0.0))
+        top-verts    (mapv (fn [i p] (brep-vertex (+ segments (inc i)) p)) (range) (ring height))
+        ring-edges   (fn [vs id-base]
+                       (mapv (fn [i]
+                               (let [sv (nth vs i) ev (nth vs (mod (inc i) segments))
+                                     dir (v-normalize (v- (:point ev) (:point sv)))]
+                                 (brep-edge (+ id-base i) (line-curve (:point sv) dir)
+                                            (:id sv) (:id ev)
+                                            [0.0 (v-distance (:point sv) (:point ev))])))
+                             (range segments)))
+        bottom-edges (ring-edges bottom-verts 1000)
+        top-edges    (ring-edges top-verts 2000)
+        mid          (v+ base-center (v-scale ax (* 0.5 height)))
+        bottom-face  (brep-face 3000 (plane-surface mid (v-scale ax -1.0))
+                                 [(mapv :id bottom-edges)] :forward)
+        top-face     (brep-face 3001 (plane-surface mid ax)
+                                 [(mapv :id top-edges)] :forward)
+        side-face    (brep-face 3002 (cylinder-surface base-center ax radius height)
+                                 [(into (mapv :id bottom-edges) (mapv :id top-edges))] :forward)
+        shell        (brep-shell 3100 [bottom-face top-face side-face] :forward)]
+    [(brep-solid id [shell])
+     (into bottom-edges top-edges)
+     (into bottom-verts top-verts)]))
 
 (defn make-box
   "Build a rectangular box solid from 8 vertices, 12 edges, 6 faces.

@@ -95,37 +95,98 @@
 (defn tree-len [tree] (count (:entries tree)))
 (defn tree-empty? [tree] (empty? (:entries tree)))
 
+(defn- sketch-by-id
+  "Non-suppressed :sketch features in `entries`, keyed by :id — revolve
+  looks its profile up by :sketch-ref, and (unlike extrude) actually
+  needs it."
+  [entries]
+  (into {}
+        (keep (fn [{:keys [feature suppressed]}]
+                (when (and (not suppressed) (= :sketch (:kind feature)))
+                  [(:id feature) feature])))
+        entries))
+
+(defn- revolve-profile-cylinder
+  "The only revolve profile this evaluator supports today: `sketch`'s
+  :entities contains exactly one sketch-line, and both its 2D [x y]
+  endpoints share the same x (an axis-parallel profile — x is radius, y
+  is axial offset from the sketch plane's origin). Returns
+  {:radius :axial-min :axial-max}, or nil if the sketch doesn't match
+  that shape (an angled line — a cone/frustum profile — or any other
+  entity count/kind is not yet implemented; no cone tessellation exists
+  in brep.tessellate yet to render one correctly)."
+  [sketch]
+  (let [lines (filter #(= :line (:kind %)) (:entities sketch))]
+    (when (= 1 (count lines))
+      (let [{:keys [start end]} (first lines)
+            [x0 y0] start [x1 y1] end]
+        (when (< (Math/abs (- x0 x1)) 1e-9)
+          {:radius x0 :axial-min (min y0 y1) :axial-max (max y0 y1)})))))
+
 (defn evaluate
-  "Evaluate the feature tree, producing a BREP solid. Current
-  implementation handles the base-feature case: an `:extrude` with
-  `:operation :new` generates a box-like prism from a unit-square
-  cross-section along the extrusion direction (matches the original —
-  full boolean/revolve/fillet/chamfer evaluation is future work, tracked
-  as TODOs in the source). Returns `[:ok [solid edges verts]]` or
-  `[:error msg]`."
+  "Evaluate the feature tree, producing a BREP solid. Handles two base-
+  feature cases:
+
+  - `:extrude` with `:operation :new` generates a box-like prism from a
+    unit-square cross-section along the extrusion direction (matches the
+    original kami-cad Rust restoration — sketch entities are not yet
+    consumed here, only :direction/:distance).
+  - `:revolve` generates a real solid of revolution (brep.kernel/
+    make-cylinder) ONLY for a full 2π turn of a single axis-parallel
+    sketch-line profile (see revolve-profile-cylinder) — a cone/frustum
+    profile (an angled line) or a partial-angle revolve returns
+    `:error`, not a silently wrong shape; no cone tessellation exists
+    yet to render either correctly.
+
+  boolean/fillet/chamfer/sweep/loft/shell/pattern evaluation remain
+  future work, tracked as TODOs in the source (a general boolean CSG
+  kernel and arbitrary-profile revolve/sweep both need real geometry
+  algorithms — polygon/polyhedron clipping, cone/freeform tessellation —
+  that are correctness-critical enough not to rush).
+
+  Returns `[:ok [solid edges verts]]` or `[:error msg]`."
   [tree]
-  (loop [entries (:entries tree)
-         result nil]
-    (if (empty? entries)
-      (if result [:ok result] [:error "feature tree produced no solid"])
-      (let [{:keys [feature suppressed]} (first entries)]
-        (if suppressed
-          (recur (rest entries) result)
-          (case (:kind feature)
-            :extrude
-            (case (:operation feature)
-              :new
-              (let [half 0.5
-                    ext (k/v-scale (k/v-normalize (:direction feature)) (:distance feature))
-                    vmin [(- half) (- half) 0.0]
-                    vmax (k/v+ [half half 0.0] ext)]
-                (recur (rest entries) (k/make-box 1 vmin vmax)))
+  (let [sketches (sketch-by-id (:entries tree))]
+    (loop [entries (:entries tree)
+           result nil]
+      (if (empty? entries)
+        (if result [:ok result] [:error "feature tree produced no solid"])
+        (let [{:keys [feature suppressed]} (first entries)]
+          (if suppressed
+            (recur (rest entries) result)
+            (case (:kind feature)
+              :extrude
+              (case (:operation feature)
+                :new
+                (let [half 0.5
+                      ext (k/v-scale (k/v-normalize (:direction feature)) (:distance feature))
+                      vmin [(- half) (- half) 0.0]
+                      vmax (k/v+ [half half 0.0] ext)]
+                  (recur (rest entries) (k/make-box 1 vmin vmax)))
 
-              (:add :cut :intersect)
-              (if (nil? result)
-                [:error "no base solid to apply boolean to"]
-                (recur (rest entries) result)))
+                (:add :cut :intersect)
+                (if (nil? result)
+                  [:error "no base solid to apply boolean to"]
+                  (recur (rest entries) result)))
 
-            :sketch (recur (rest entries) result)
+              :revolve
+              (let [full-turn? (>= (:angle feature) (- (* 2.0 Math/PI) 1e-6))
+                    sketch (get sketches (:sketch-ref feature))
+                    profile (when sketch (revolve-profile-cylinder sketch))]
+                (cond
+                  (not full-turn?)
+                  [:error "revolve: only a full 2π turn is implemented (partial-angle pie-slice revolve is not yet supported)"]
+                  (nil? sketch)
+                  [:error (str "revolve: sketch-ref " (:sketch-ref feature) " not found")]
+                  (nil? profile)
+                  [:error "revolve: only a single axis-parallel sketch-line profile is implemented (an angled line -> cone/frustum, or any other profile shape, is not yet supported)"]
+                  :else
+                  (let [axis (k/v-normalize (:axis feature))
+                        base (k/v+ (sketch-plane-origin (:plane sketch))
+                                   (k/v-scale axis (:axial-min profile)))
+                        height (- (:axial-max profile) (:axial-min profile))]
+                    (recur (rest entries) (k/make-cylinder 1 base axis (:radius profile) height)))))
 
-            (recur (rest entries) result)))))))
+              :sketch (recur (rest entries) result)
+
+              (recur (rest entries) result))))))))

@@ -33,8 +33,19 @@ with all 9 original Rust unit tests mirrored 1:1 in `test/brep_test.cljc`
 (+1 smoke test), plus additional coverage for `brep.kernel` vector math,
 curve evaluation, feature-tree edge cases, and the `brep.config` EDN
 authority sync check that weren't exercised by the original Rust test
-suite — 22 tests / 88 assertions, 0 failures. Pure data + pure functions
-throughout; no IO/GPU.
+suite, plus real (beyond-original-scope) `make-cylinder` + `:revolve`
+coverage — 30 tests / 386 assertions, 0 failures. Pure data + pure
+functions throughout; no IO/GPU.
+
+`brep.kernel/make-cylinder` (new, beyond the original Rust scope) builds a
+real cylindrical solid — two N-segment polygonal cap faces + one
+`cylinder-surface` wall, `brep.tessellate` and `brep.kernel/bounding-box`
+both handle it correctly (validated against the analytic πr²h / 2πr²+2πrh
+formulas within ~2%, and against exact bounding-box radius/height).
+`cylinder-surface` now optionally carries an explicit `:height` — fixes a
+real bug where `brep.tessellate`'s cylinder wall always used
+`brep.config/cylinder-default-height` (a global constant) regardless of
+the solid's actual extent.
 
 Tessellation LOD constants (cylinder/sphere segment counts) and epsilon
 thresholds (point-merge, knot-denominator) live in `brep.config` — a
@@ -51,11 +62,17 @@ Clojure namespaces can't have cycles). Here `brep.kernel` is pure topology
 + vector math; `brep.tessellate` depends on it and owns tessellation +
 the volume/surface-area estimates that need a tessellated mesh as input.
 
-Feature-tree evaluation matches the original's scope: only `:extrude`
-with `:operation :new` produces a solid (a box-like prism from a
-unit-square cross-section); revolve/fillet/chamfer/full-boolean are
-documented as not-yet-implemented (matches the original's `log::warn!`
-TODOs — full BREP boolean requires a proper boolean kernel).
+Feature-tree evaluation started at the original's scope (only `:extrude`
+with `:operation :new`, a box-like prism from a unit-square
+cross-section) and now also handles `:revolve` — but only for a full 2π
+turn of a single axis-parallel sketch-line profile (constant radius,
+`make-cylinder`); an angled-line profile (cone/frustum) or a
+partial-angle revolve returns `:error`, not a silently wrong shape (no
+cone tessellation exists yet to render one correctly). fillet/chamfer/
+full-boolean/sweep/loft/shell/pattern remain not-yet-implemented (matches
+the original's `log::warn!` TODOs — a general boolean CSG kernel needs
+robust polygon/polyhedron clipping, which is correctness-critical enough
+not to rush).
 
 ## Develop
 
