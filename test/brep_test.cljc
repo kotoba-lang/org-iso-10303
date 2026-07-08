@@ -52,6 +52,57 @@
       (is (= :ok status))
       (is (= 6 (k/face-count solid))))))
 
+;; ── brep.feature :revolve (new — a real solid of revolution, not the
+;; box-only evaluate this repo started with) ──
+
+(deftest revolve-axis-parallel-profile-produces-a-cylinder
+  (testing "revolving a constant-radius sketch-line 2π around Z produces a
+            real cylinder (make-cylinder), not a box"
+    (let [tree (-> (feature/feature-tree)
+                    (feature/add-feature
+                     (feature/sketch-feature 1 (feature/sketch-plane-xy)
+                                              [(feature/sketch-line [3.0 0.0] [3.0 8.0])]))
+                    (feature/add-feature
+                     (feature/revolve-feature 2 1 [0.0 0.0 1.0] (* 2.0 Math/PI) :new)))
+          [status [solid edges verts]] (feature/evaluate tree)]
+      (is (= :ok status))
+      (is (= 3 (k/face-count solid)))
+      (let [[bb-min bb-max] (k/bounding-box solid edges verts)]
+        (is (close? (nth bb-min 0) -3.0 1e-6))
+        (is (close? (nth bb-max 0) 3.0 1e-6))
+        (is (close? (nth bb-min 2) 0.0 1e-6))
+        (is (close? (nth bb-max 2) 8.0 1e-6))))))
+
+(deftest revolve-rejects-partial-angle
+  (testing "a partial-angle revolve (pie slice) is not yet implemented -- errors, not a wrong shape"
+    (let [tree (-> (feature/feature-tree)
+                    (feature/add-feature
+                     (feature/sketch-feature 1 (feature/sketch-plane-xy)
+                                              [(feature/sketch-line [3.0 0.0] [3.0 8.0])]))
+                    (feature/add-feature
+                     (feature/revolve-feature 2 1 [0.0 0.0 1.0] Math/PI :new)))
+          [status _] (feature/evaluate tree)]
+      (is (= :error status)))))
+
+(deftest revolve-rejects-angled-profile
+  (testing "a non-axis-parallel profile (cone/frustum) is not yet implemented -- errors"
+    (let [tree (-> (feature/feature-tree)
+                    (feature/add-feature
+                     (feature/sketch-feature 1 (feature/sketch-plane-xy)
+                                              [(feature/sketch-line [1.0 0.0] [3.0 8.0])]))
+                    (feature/add-feature
+                     (feature/revolve-feature 2 1 [0.0 0.0 1.0] (* 2.0 Math/PI) :new)))
+          [status _] (feature/evaluate tree)]
+      (is (= :error status)))))
+
+(deftest revolve-rejects-missing-sketch
+  (testing "a dangling sketch-ref errors instead of silently producing nothing useful"
+    (let [tree (-> (feature/feature-tree)
+                    (feature/add-feature
+                     (feature/revolve-feature 2 999 [0.0 0.0 1.0] (* 2.0 Math/PI) :new)))
+          [status _] (feature/evaluate tree)]
+      (is (= :error status)))))
+
 ;; mirrors `feature_suppress_unsuppress`
 (deftest feature-suppress-unsuppress
   (let [tree (-> (feature/feature-tree)
@@ -100,6 +151,47 @@
   (let [[solid edges verts] (k/make-box 1 [0.0 0.0 0.0] [2.0 3.0 4.0])
         vol (tessellate/volume solid edges verts)]
     (is (> vol 0.0))))
+
+;; ── brep.kernel/make-cylinder (new — a real solid of revolution primitive,
+;; not a hand-rolled mesh; validated against analytic cylinder volume/area
+;; the same way volume-positive-for-solid/surface-area-unit-cube validate
+;; make-box) ──
+
+(deftest make-cylinder-topology
+  (let [[solid edges verts] (k/make-cylinder 1 [0.0 0.0 0.0] [0.0 0.0 1.0] 2.0 5.0)]
+    (is (= 3 (k/face-count solid)) "two caps + one cylindrical wall")
+    (is (= (* 2 config/cylinder-segments) (k/edge-count solid)))
+    (is (= (* 2 config/cylinder-segments) (k/vertex-count solid edges)))
+    (is (= (* 2 config/cylinder-segments) (count verts)))))
+
+(deftest make-cylinder-bounding-box-matches-radius-and-height
+  (let [[solid edges verts] (k/make-cylinder 1 [0.0 0.0 0.0] [0.0 0.0 1.0] 2.0 5.0)
+        [bb-min bb-max] (k/bounding-box solid edges verts)]
+    (is (close? (nth bb-min 0) -2.0 1e-9))
+    (is (close? (nth bb-max 0) 2.0 1e-9))
+    (is (close? (nth bb-min 2) 0.0 1e-9))
+    (is (close? (nth bb-max 2) 5.0 1e-9))))
+
+(deftest make-cylinder-volume-and-area-approximate-analytic-cylinder
+  (testing "24-segment polygon approximation is within ~2% of the true πr²h / (2πr² + 2πrh)"
+    (let [[solid edges verts] (k/make-cylinder 1 [0.0 0.0 0.0] [0.0 0.0 1.0] 2.0 5.0)
+          vol (tessellate/volume solid edges verts)
+          area (tessellate/surface-area solid edges verts)
+          analytic-vol (* Math/PI 2.0 2.0 5.0)
+          analytic-area (+ (* 2.0 Math/PI 2.0 2.0) (* 2.0 Math/PI 2.0 5.0))]
+      (is (< (Math/abs (- vol analytic-vol)) (* 0.02 analytic-vol)))
+      (is (< (Math/abs (- area analytic-area)) (* 0.02 analytic-area))))))
+
+(deftest make-cylinder-tessellates-to-a-watertight-mesh
+  (testing "cap segment count matches the wall's tessellation resolution --
+            no gaps between them (a real risk if the two were generated at
+            different segment counts)"
+    (let [[solid edges verts] (k/make-cylinder 1 [1.0 2.0 3.0] [1.0 0.0 0.0] 1.5 4.0)
+          [positions indices] (tessellate/tessellate-solid solid edges verts)]
+      (is (seq positions))
+      (is (seq indices))
+      (doseq [idx indices] (is (< idx (count positions))))
+      (is (= 0 (mod (count indices) 3))))))
 
 ;; mirrors `assembly_constraint_solve_validates_instances`
 (deftest assembly-constraint-solve-validates-instances
