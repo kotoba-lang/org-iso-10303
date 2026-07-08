@@ -5,13 +5,15 @@
   feature-tree edge cases, and the `brep.config` EDN authority that
   weren't exercised by the original Rust test suite."
   (:require [clojure.test :refer [deftest is testing]]
+            [clojure.string :as str]
             [brep]
             [brep.config :as config]
             #?(:clj [brep.config-loader :as loader])
             [brep.kernel :as k]
             [brep.feature :as feature]
             [brep.assembly :as assembly]
-            [brep.tessellate :as tessellate]))
+            [brep.tessellate :as tessellate]
+            [brep.step :as step]))
 
 (defn- close? [a b eps] (< (Math/abs (- a b)) eps))
 
@@ -289,3 +291,50 @@
   (is (= 24 config/cylinder-segments))
   (is (= 16 config/sphere-u-segments))
   (is (= 12 config/sphere-v-segments)))
+
+;; ── brep.step: ISO 10303-21 (STEP) reader/writer round-trip (new --
+;; entity mapping/parameter order checked against steptools.com's
+;; reference AP203 sample block.stp before writing this; correctness
+;; here is validated by round-trip topology/volume/area equality, since
+;; box-and-arbitrary-real-file compatibility beyond the LINE/PLANE subset
+;; this reader supports isn't attempted -- see brep.step's docstring) ──
+
+(deftest step-round-trip-preserves-box-topology
+  (let [[solid edges verts] (k/make-box 1 [0.0 0.0 0.0] [10.0 20.0 30.0])
+        text (step/write-step solid edges verts)
+        [solid2 edges2 verts2] (step/read-step text)]
+    (is (= (k/face-count solid) (k/face-count solid2) 6))
+    (is (= (k/edge-count solid) (k/edge-count solid2) 12))
+    (is (= (k/vertex-count solid edges) (k/vertex-count solid2 edges2) 8))
+    (is (= (count verts) (count verts2) 8))))
+
+(deftest step-round-trip-preserves-bounding-box
+  (let [[solid edges verts] (k/make-box 1 [-5.0 -5.0 -5.0] [5.0 5.0 5.0])
+        text (step/write-step solid edges verts)
+        [solid2 edges2 verts2] (step/read-step text)]
+    (is (= (k/bounding-box solid edges verts) (k/bounding-box solid2 edges2 verts2)))))
+
+(deftest step-round-trip-preserves-volume-and-area
+  (let [[solid edges verts] (k/make-box 1 [0.0 0.0 0.0] [2.0 3.0 4.0])
+        text (step/write-step solid edges verts)
+        [solid2 edges2 verts2] (step/read-step text)]
+    (is (= (tessellate/volume solid edges verts) (tessellate/volume solid2 edges2 verts2)))
+    (is (= (tessellate/surface-area solid edges verts) (tessellate/surface-area solid2 edges2 verts2)))))
+
+(deftest step-write-emits-real-ap203-entities
+  (testing "the exact entity names + physical-file framing a real STEP
+            reader (or a human) would look for"
+    (let [[solid edges verts] (k/make-box 1 [0.0 0.0 0.0] [1.0 1.0 1.0])
+          text (step/write-step solid edges verts)]
+      (is (str/starts-with? text "ISO-10303-21;"))
+      (is (str/includes? text "END-ISO-10303-21;"))
+      (doseq [entity ["CARTESIAN_POINT" "DIRECTION" "VECTOR" "LINE" "PLANE"
+                       "VERTEX_POINT" "EDGE_CURVE" "ORIENTED_EDGE" "EDGE_LOOP"
+                       "FACE_BOUND" "ADVANCED_FACE" "CLOSED_SHELL" "MANIFOLD_SOLID_BREP"]]
+        (is (str/includes? text entity) (str "missing " entity))))))
+
+(deftest step-write-rejects-cylinder
+  (testing "make-cylinder solids are refused, not silently mis-exported as
+            flat-faced approximations (see brep.step's docstring)"
+    (let [[solid edges verts] (k/make-cylinder 1 [0.0 0.0 0.0] [0.0 0.0 1.0] 2.0 5.0)]
+      (is (thrown? #?(:clj Exception :cljs js/Error) (step/write-step solid edges verts))))))
