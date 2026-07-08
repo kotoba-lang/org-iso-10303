@@ -20,6 +20,7 @@ repo restores the legacy `kami-cad` BREP kernel under a collision-free name.
 | `brep.assembly` | `assembly` | Part instances, assembly constraints, BOM extraction |
 | `brep.tessellate` | `tessellate` | BREP solid -> triangle mesh, volume/surface-area estimates |
 | `brep.config` | (new) | EDN-authority tessellation LOD + epsilon constants (`resources/brep/tessellation.edn`), consumed by `brep.kernel`/`brep.tessellate` in place of inline magic numbers |
+| `brep.step` | (new) | ISO 10303-21 (STEP) physical-file reader/writer — PLANE-faced, LINE-edged solids only (`make-box`); see Status |
 
 f64 precision throughout (`[x y z]` 3-vectors, glam::DVec3 in the
 original) for CAD-grade accuracy. Depends on `kotoba-lang/engineer` for
@@ -33,9 +34,27 @@ with all 9 original Rust unit tests mirrored 1:1 in `test/brep_test.cljc`
 (+1 smoke test), plus additional coverage for `brep.kernel` vector math,
 curve evaluation, feature-tree edge cases, and the `brep.config` EDN
 authority sync check that weren't exercised by the original Rust test
-suite, plus real (beyond-original-scope) `make-cylinder` + `:revolve`
-coverage — 30 tests / 386 assertions, 0 failures. Pure data + pure
-functions throughout; no IO/GPU.
+suite, plus real (beyond-original-scope) `make-cylinder` + `:revolve` +
+`brep.step` STEP I/O coverage — 35 tests / 409 assertions, 0 failures.
+Pure data + pure functions throughout; no GPU.
+
+`brep.step/write-step` + `read-step` (new, beyond the original Rust
+scope): a real ISO 10303-21 physical-file reader/writer for AP203-style
+`MANIFOLD_SOLID_BREP` entities — `CARTESIAN_POINT`/`DIRECTION`/`VECTOR`/
+`AXIS2_PLACEMENT_3D`/`LINE`/`PLANE`/`VERTEX_POINT`/`EDGE_CURVE`/
+`ORIENTED_EDGE`/`EDGE_LOOP`/`FACE_BOUND`/`ADVANCED_FACE`/`CLOSED_SHELL`/
+`MANIFOLD_SOLID_BREP`, entity names and parameter order checked against
+steptools.com's reference AP203 sample `block.stp` before writing this.
+Scope is PLANE-faced solids with straight (LINE) edges only — exactly
+what `make-box` produces; `make-cylinder` is refused (throws), not
+silently mis-exported, since faithfully re-expressing its polygon-
+approximated cylinder as STEP's analytic `CYLINDRICAL_SURFACE`/`CIRCLE`
+entities needs more design than writing already-analytic PLANE/LINE
+topology straight through. Round-trip fidelity (write → read → identical
+face/edge/vertex counts, bounding box, volume, surface area) is what's
+validated — `read-step` is not a general-purpose STEP parser and will
+reject a third-party AP203 file that uses `INTERSECTION_CURVE` or any
+other entity this doesn't emit.
 
 `brep.kernel/make-cylinder` (new, beyond the original Rust scope) builds a
 real cylindrical solid — two N-segment polygonal cap faces + one
