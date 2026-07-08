@@ -1,9 +1,18 @@
-# kotoba-lang/brep
+# kotoba-lang/org-iso-10303
 
 Zero-dep portable `.cljc` — restored from the legacy `kami-engine/kami-cad`
 Rust crate (deleted in kotoba-lang/kami-engine PR #82 "Remove Rust workspace
 from kami-engine") as part of the **clj-wgsl migration** (ADR-2607010930,
 `com-junkawasaki/root`).
+
+**Renamed from `brep` (2026-07-08):** `brep.kernel`'s vertex/edge/face/
+shell/solid topology is exactly the model ISO 10303-42 ("Geometric and
+topological representation", the generic resource STEP's AP203/214/242
+build on) defines, and `brep.step` now reads/writes real ISO 10303-21
+physical files for it — the reverse-domain naming this monorepo uses for
+repos that genuinely conform to a named external spec's format (same bar
+as `org-iso-jpeg`/`org-iso-h264`/`org-iso-isobmff`). See ADR-2607084000.
+Clojure namespaces stay `brep.*` (a GitHub repo rename only).
 
 KAMI CAD kernel: BREP solid modeling, parametric feature tree, assembly
 management, tessellation.
