@@ -80,3 +80,36 @@
             (reduce (fn [sum [coefficient point]]
                       (mapv + sum (mapv #(* coefficient %) point)))
                     (vec (repeat (count (get-in control-points [0 0])) 0.0)) terms)))))
+
+(defn closest-surface-parameters
+  "Approximate the `(u,v)` coordinates whose surface point is nearest to
+  `target`. Uses a deterministic coarse search followed by local refinement.
+  The surface must contain expanded `:u-knots` and `:v-knots`."
+  ([surface target] (closest-surface-parameters surface target 16 10))
+  ([surface target grid-size refinement-steps]
+   (let [u-count (count (:control-points surface))
+         v-count (count (first (:control-points surface)))
+         [u-min u-max] (parameter-range (:u-degree surface) (:u-knots surface) u-count)
+         [v-min v-max] (parameter-range (:v-degree surface) (:v-knots surface) v-count)
+         clamp (fn [value lower upper] (max lower (min upper value)))
+         distance2 (fn [[u v]]
+                     (reduce + (map (fn [a b] (let [d (- a b)] (* d d)))
+                                    target (surface-point surface u v))))
+         coarse (for [ui (range (inc grid-size)) vi (range (inc grid-size))]
+                  [(+ u-min (* (- u-max u-min) (/ ui grid-size)))
+                   (+ v-min (* (- v-max v-min) (/ vi grid-size)))])
+         initial (apply min-key distance2 coarse)
+         initial-u-step (/ (- u-max u-min) grid-size)
+         initial-v-step (/ (- v-max v-min) grid-size)
+         [parameters _ _]
+         (nth (iterate
+               (fn [[[u v] u-step v-step]]
+                 (let [candidates (for [du [-1.0 0.0 1.0] dv [-1.0 0.0 1.0]]
+                                    [(clamp (+ u (* du u-step)) u-min u-max)
+                                     (clamp (+ v (* dv v-step)) v-min v-max)])]
+                   [(apply min-key distance2 candidates) (/ u-step 2.0) (/ v-step 2.0)]))
+               [initial initial-u-step initial-v-step])
+              refinement-steps)]
+     {:parameters parameters
+      :point (apply surface-point surface parameters)
+      :distance (#?(:clj Math/sqrt :cljs js/Math.sqrt) (distance2 parameters))})))
