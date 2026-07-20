@@ -30,3 +30,17 @@
     (is (= "O'Brien Tower" (get-in parsed [:part21/entity-by-id 1 :args 2])))
     (is (= [:ref 3] (get-in parsed [:part21/entity-by-id 2 :args 0])))
     (is (= [:list 0.0 1.5 2.0] (get-in parsed [:part21/entity-by-id 3 :args 0])))))
+
+(deftest reads-commented-exchange-files-without-losing-following-entities
+  (let [text (str "ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n"
+                  "/* project definition */\n"
+                  "#1=IFCPROJECT('gid',$,'Project /* literal */',$,$,$,$,(),$);\n"
+                  "#2=IFCSIUNIT(*,.LENGTHUNIT.,$,.METRE.); /* inline comment */\n"
+                  "/* comment between tokens */ #3=IFCCOLUMN('column',$,'Column',$,$,$,$,$,$);\n"
+                  "ENDSEC;\nEND-ISO-10303-21;\n")
+        parsed (part21/parse-file text)]
+    (is (= [1 2 3] (mapv :id (:part21/entities parsed))))
+    (is (= "Project /* literal */"
+           (get-in parsed [:part21/entity-by-id 1 :args 2])))
+    (is (= :* (get-in parsed [:part21/entity-by-id 2 :args 0])))
+    (is (= :ifccolumn (get-in parsed [:part21/entity-by-id 3 :type])))))

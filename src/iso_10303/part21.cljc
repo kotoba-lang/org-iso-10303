@@ -106,6 +106,34 @@
   (when-let [[_ body] (re-find #"(?s)\bDATA\s*;(.*)ENDSEC\s*;\s*END-ISO-10303-21" text)]
     body))
 
+(defn- strip-exchange-comments
+  "Remove ISO 10303-21 block comments without treating comment delimiters in
+  quoted strings as syntax. Whitespace is retained at each removed comment so
+  adjacent lexical tokens cannot be joined accidentally."
+  [text]
+  (loop [remaining (seq text) quoted? false comment? false result []]
+    (if-let [c (first remaining)]
+      (let [next-c (second remaining)]
+        (cond
+          (and comment? (= c \*) (= next-c \/))
+          (recur (nnext remaining) quoted? false (conj result \space))
+
+          comment?
+          (recur (next remaining) quoted? true result)
+
+          (and quoted? (= c \') (= next-c \'))
+          (recur (nnext remaining) quoted? false (conj result c next-c))
+
+          (= c \')
+          (recur (next remaining) (not quoted?) false (conj result c))
+
+          (and (not quoted?) (= c \/) (= next-c \*))
+          (recur (nnext remaining) quoted? true (conj result \space))
+
+          :else
+          (recur (next remaining) quoted? false (conj result c))))
+      (string/join result))))
+
 (defn- statements [text]
   (loop [remaining (seq text) depth 0 quoted? false current [] result []]
     (if-let [c (first remaining)]
@@ -125,6 +153,6 @@
 (defn parse-file [text]
   (let [schema (second (re-find #"FILE_SCHEMA\s*\(\s*\(\s*'([^']+)'" text))
         entities (if-let [body (data-text text)]
-                   (vec (keep parse-entity (statements body))) [])]
+                   (vec (keep parse-entity (statements (strip-exchange-comments body)))) [])]
     {:part21/schema schema :part21/entities entities
      :part21/entity-by-id (into {} (map (juxt :id identity)) entities)}))
