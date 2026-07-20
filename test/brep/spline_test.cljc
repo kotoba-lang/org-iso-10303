@@ -20,3 +20,15 @@
   (is (= [0.0 0.0 0.5 1.0 1.0]
          (spline/expand-knots nil nil 1 3)))
   (is (= [0.0 1.0] (spline/parameter-range 1 [0.0 0.0 1.0 1.0] 2))))
+
+(deftest inverse-maps-points-to-surface-parameters
+  (let [knots [0.0 0.0 1.0 1.0]
+        surface {:u-degree 1 :v-degree 1
+                 :control-points [[[0.0 0.0 0.0] [0.0 2.0 0.0]]
+                                  [[2.0 0.0 0.0] [2.0 2.0 1.0]]]
+                 :u-knots knots :v-knots knots}
+        result (spline/closest-surface-parameters surface [0.5 1.0 0.125])
+        [u v] (:parameters result)]
+    (is (< (#?(:clj Math/abs :cljs js/Math.abs) (- u 0.25)) 1.0e-3))
+    (is (< (#?(:clj Math/abs :cljs js/Math.abs) (- v 0.5)) 1.0e-3))
+    (is (< (:distance result) 1.0e-3))))
