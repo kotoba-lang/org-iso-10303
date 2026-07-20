@@ -20,6 +20,8 @@
     (str "(" (string/join ", " (map value (rest v))) ")")
     (= :$ v) "$"
     (= :* v) "*"
+    (true? v) ".T."
+    (false? v) ".F."
     (keyword? v) (str "." (token v) ".")
     (number? v) (step-real v)
     :else (str v)))
