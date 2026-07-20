@@ -10,6 +10,16 @@
        (part21/file {:schema "IFC4X3_ADD2"} [1 :ifcproject "p"])
        "FILE_SCHEMA(('IFC4X3_ADD2'))")))
 
+(deftest boolean-values-use-standard-part21-logical-tokens
+  (is (= ".T." (part21/value true)))
+  (is (= ".F." (part21/value false)))
+  (let [text (part21/file {:schema "IFC4X3_ADD2"}
+                          [1 :ifctriangulatedfaceset [:ref 2] :$ true
+                           [:list [:list 1 2 3]] :$])
+        parsed (part21/parse-file text)]
+    (is (string/includes? text ", .T.,"))
+    (is (true? (get-in parsed [:part21/entity-by-id 1 :args 2])))))
+
 (deftest reads-part21-entities
   (let [text (str "ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('IFC4X3_ADD2'));\nENDSEC;\nDATA;\n"
                   "#1=IFCPROJECT('2O2Fr$t4X7Zf8NOew3FLOH',$,'O''Brien Tower',$,$,$,$,$,$);\n"
