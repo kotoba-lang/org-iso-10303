@@ -71,6 +71,36 @@
       (cond-> result (seq current) (conj (string/join current))))))
 
 (declare parse-value)
+
+(defn- parse-hex [text]
+  #?(:clj (Integer/parseInt text 16)
+     :cljs (js/parseInt text 16)))
+
+(defn- code-unit-string [hex]
+  (apply str
+         (map (fn [digits]
+                #?(:clj (char (parse-hex (apply str digits)))
+                   :cljs (js/String.fromCharCode (parse-hex (apply str digits)))))
+              (partition 4 hex))))
+
+(defn- code-point-string [hex]
+  (apply str
+         (map (fn [digits]
+                (let [point (parse-hex (apply str digits))]
+                  #?(:clj (String. (Character/toChars point))
+                     :cljs (js/String.fromCodePoint point))))
+              (partition 8 hex))))
+
+(defn decode-string
+  "Decode ISO 10303-21 extended-string directives in a quoted payload."
+  [text]
+  (-> text
+      (string/replace #"\\X4\\([0-9A-Fa-f]+)\\X0\\"
+                      (fn [[_ hex]] (code-point-string hex)))
+      (string/replace #"\\X2\\([0-9A-Fa-f]+)\\X0\\"
+                      (fn [[_ hex]] (code-unit-string hex)))
+      (string/replace "''" "'")))
+
 (defn parse-value [raw]
   (let [value (string/trim raw)]
     (cond
@@ -80,7 +110,7 @@
       (= ".F." value) false
       (re-matches #"#\d+" value) [:ref (#?(:clj Long/parseLong :cljs js/parseInt) (subs value 1))]
       (and (string/starts-with? value "'") (string/ends-with? value "'"))
-      (string/replace (subs value 1 (dec (count value))) "''" "'")
+      (decode-string (subs value 1 (dec (count value))))
       (and (string/starts-with? value "(") (string/ends-with? value ")"))
       (into [:list] (map parse-value (split-top-level (subs value 1 (dec (count value))))))
       (re-matches #"\.[A-Z0-9_]+\." value)
