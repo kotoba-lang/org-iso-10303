@@ -181,9 +181,30 @@
           :else (recur (next remaining) depth quoted? (conj current c) result)))
       result)))
 
+(defn- header-value [text entity-name]
+  (when-let [statement
+             (some #(when (re-find (re-pattern (str "(?i)\\b" entity-name "\\s*\\(")) %)
+                      %)
+                   (statements (strip-exchange-comments text)))]
+    (let [start (string/index-of statement "(")
+          end (string/last-index-of statement ")")]
+      (parse-value (subs statement start (inc end))))))
+
 (defn parse-file [text]
   (let [schema (second (re-find #"FILE_SCHEMA\s*\(\s*\(\s*'([^']+)'" text))
+        description (header-value text "FILE_DESCRIPTION")
+        file-name (header-value text "FILE_NAME")
         entities (if-let [body (data-text text)]
                    (vec (keep parse-entity (statements (strip-exchange-comments body)))) [])]
-    {:part21/schema schema :part21/entities entities
+    {:part21/schema schema
+     :part21/file-description (vec (rest (second description)))
+     :part21/implementation-level (nth description 2 nil)
+     :part21/file-name {:name (nth file-name 1 nil)
+                        :timestamp (nth file-name 2 nil)
+                        :authors (vec (rest (nth file-name 3 [:list])))
+                        :organizations (vec (rest (nth file-name 4 [:list])))
+                        :preprocessor-version (nth file-name 5 nil)
+                        :originating-system (nth file-name 6 nil)
+                        :authorization (nth file-name 7 nil)}
+     :part21/entities entities
      :part21/entity-by-id (into {} (map (juxt :id identity)) entities)}))
