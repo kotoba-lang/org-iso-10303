@@ -31,6 +31,12 @@
     (is (= [:ref 3] (get-in parsed [:part21/entity-by-id 2 :args 0])))
     (is (= [:list 0.0 1.5 2.0] (get-in parsed [:part21/entity-by-id 3 :args 0])))))
 
+(deftest decodes-standard-extended-unicode-strings
+  (is (= "♫Don'tÄrgerhôtelЊет"
+         (part21/parse-value
+          "'\\X2\\266B\\X0\\Don''t\\X2\\00C4\\X0\\rgerh\\X2\\00F4\\X0\\tel\\X2\\040A04350442\\X0\\'")))
+  (is (= "😀" (part21/parse-value "'\\X4\\0001F600\\X0\\'"))))
+
 (deftest reads-commented-exchange-files-without-losing-following-entities
   (let [text (str "ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\n"
                   "/* project definition */\n"
