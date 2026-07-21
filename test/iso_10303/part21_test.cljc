@@ -22,7 +22,12 @@
 
 (deftest preserves-integer-and-real-lexical-types
   (is (= "3" (part21/value 3)))
-  (is (= "3." (part21/value 3.0))))
+  (is (= "3." (part21/value 3.0)))
+  (is (integer? (part21/parse-value "3")))
+  (is (= 3 (part21/parse-value "3")))
+  (is (number? (part21/parse-value "3.")))
+  (is (not (integer? (part21/parse-value "3."))))
+  (is (= -12 (part21/parse-value "-12"))))
 
 (deftest reads-part21-entities
   (let [text (str "ISO-10303-21;\nHEADER;\nFILE_SCHEMA(('IFC4X3_ADD2'));\nENDSEC;\nDATA;\n"

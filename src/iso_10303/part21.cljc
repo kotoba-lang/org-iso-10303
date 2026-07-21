@@ -121,6 +121,8 @@
       (let [[_ type body] (re-matches #"(?s)([A-Z][A-Z0-9_]*)\((.*)\)" value)]
         [:typed (-> type string/lower-case (string/replace "_" "-") keyword)
          (parse-value body)])
+      (re-matches #"[+-]?\d+" value)
+      (#?(:clj Long/parseLong :cljs js/parseInt) value)
       (re-matches #"[+-]?(?:\d+\.?\d*|\.\d+)(?:[Ee][+-]?\d+)?" value)
       (#?(:clj Double/parseDouble :cljs js/parseFloat) value)
       :else value)))
