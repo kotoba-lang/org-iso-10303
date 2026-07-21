@@ -23,6 +23,7 @@
     (true? v) ".T."
     (false? v) ".F."
     (keyword? v) (str "." (token v) ".")
+    (integer? v) (str v)
     (number? v) (step-real v)
     :else (str v)))
 
