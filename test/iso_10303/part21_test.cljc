@@ -31,9 +31,27 @@
                   "#3=IFCCARTESIANPOINT((0.,1.5,2.));\nENDSEC;\nEND-ISO-10303-21;\n")
         parsed (part21/parse-file text)]
     (is (= "IFC4X3_ADD2" (:part21/schema parsed)))
+    (is (= [] (:part21/file-description parsed)))
+    (is (nil? (:part21/implementation-level parsed)))
     (is (= "O'Brien Tower" (get-in parsed [:part21/entity-by-id 1 :args 2])))
     (is (= [:ref 3] (get-in parsed [:part21/entity-by-id 2 :args 0])))
     (is (= [:list 0.0 1.5 2.0] (get-in parsed [:part21/entity-by-id 3 :args 0])))))
+
+(deftest reads-exchange-header-metadata
+  (let [text (str "ISO-10303-21;\nHEADER;\n"
+                  "FILE_DESCRIPTION(('ViewDefinition [ReferenceView]','Coordination'),'2;1');\n"
+                  "FILE_NAME('building.ifc','2026-07-21T00:00:00',('A','B'),('Org'),"
+                  "'Preprocessor','Authoring System','Approved');\n"
+                  "FILE_SCHEMA(('IFC4'));\nENDSEC;\nDATA;\nENDSEC;\nEND-ISO-10303-21;\n")
+        parsed (part21/parse-file text)]
+    (is (= ["ViewDefinition [ReferenceView]" "Coordination"]
+           (:part21/file-description parsed)))
+    (is (= "2;1" (:part21/implementation-level parsed)))
+    (is (= {:name "building.ifc" :timestamp "2026-07-21T00:00:00"
+            :authors ["A" "B"] :organizations ["Org"]
+            :preprocessor-version "Preprocessor"
+            :originating-system "Authoring System" :authorization "Approved"}
+           (:part21/file-name parsed)))))
 
 (deftest decodes-standard-extended-unicode-strings
   (is (= "♫Don'tÄrgerhôtelЊет"
