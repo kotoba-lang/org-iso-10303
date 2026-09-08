@@ -1,5 +1,5 @@
 (ns iso-10303.part21-test
-  (:require [clojure.string :as string]
+  (:require [kotoba.lang.text :as string]
             [clojure.test :refer [deftest is]]
             [iso-10303.part21 :as part21]))
 

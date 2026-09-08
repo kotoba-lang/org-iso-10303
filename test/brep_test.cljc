@@ -5,7 +5,7 @@
   feature-tree edge cases, and the `brep.config` EDN authority that
   weren't exercised by the original Rust test suite."
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.string :as str]
+            [kotoba.lang.text :as str]
             [brep]
             [brep.config :as config]
             #?(:clj [brep.config-loader :as loader])

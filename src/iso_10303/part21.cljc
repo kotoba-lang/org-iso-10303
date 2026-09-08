@@ -1,9 +1,9 @@
 (ns iso-10303.part21
   "Generic ISO 10303-21 physical-file serialization shared by STEP and IFC."
-  (:require [clojure.string :as string]))
+  (:require [kotoba.lang.text :as string]))
 
 (defn- token [value]
-  (string/upper-case (string/replace (name value) "-" "_")))
+  (string/upper (string/replace (name value) "-" "_")))
 
 (defn- step-real [value]
   (let [s (str (double value))]
@@ -115,11 +115,11 @@
       (and (string/starts-with? value "(") (string/ends-with? value ")"))
       (into [:list] (map parse-value (split-top-level (subs value 1 (dec (count value))))))
       (re-matches #"\.[A-Z0-9_]+\." value)
-      (-> value (subs 1 (dec (count value))) string/lower-case
+      (-> value (subs 1 (dec (count value))) string/lower
           (string/replace "_" "-") keyword)
       (re-matches #"[A-Z][A-Z0-9_]*\(.*\)" value)
       (let [[_ type body] (re-matches #"(?s)([A-Z][A-Z0-9_]*)\((.*)\)" value)]
-        [:typed (-> type string/lower-case (string/replace "_" "-") keyword)
+        [:typed (-> type string/lower (string/replace "_" "-") keyword)
          (parse-value body)])
       (re-matches #"[+-]?\d+" value)
       (#?(:clj Long/parseLong :cljs js/parseInt) value)
@@ -132,7 +132,7 @@
              (re-matches #"(?s)\s*#(\d+)\s*=\s*([A-Z0-9_]+)\s*\((.*)\)\s*;?\s*"
                          statement)]
     {:id (#?(:clj Long/parseLong :cljs js/parseInt) id)
-     :type (-> type string/lower-case (string/replace "_" "-") keyword)
+     :type (-> type string/lower (string/replace "_" "-") keyword)
      :args (mapv parse-value (split-top-level body))}))
 
 (defn- data-text [text]

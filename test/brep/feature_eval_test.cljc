@@ -15,7 +15,7 @@
   the difference of two such products), so these are verification tests, not
   change detectors."
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.string :as string]
+            [kotoba.lang.text :as string]
             [brep.topology :as topo]
             [brep.feature :as f]
             [brep.assembly :as a]
