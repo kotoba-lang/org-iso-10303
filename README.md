@@ -105,6 +105,6 @@ not to rush).
 ## Develop
 
 ```bash
-clojure -M:test
-clojure -M:lint
+kbb -M:test
+kbb -M:lint
 ```
