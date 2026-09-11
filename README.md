@@ -39,7 +39,7 @@ shared contracts (sketch constraint kind vocabulary mirrors
 ## Status
 
 Restored — all 4 modules ported from the original 1194-line Rust `lib.rs`,
-with all 9 original Rust unit tests mirrored 1:1 in `test/brep_test.cljc`
+with all 9 original Rust unit tests mirrored 1:1 in `test/brep_test.cljk`
 (+1 smoke test), plus additional coverage for `brep.kernel` vector math,
 curve evaluation, feature-tree edge cases, and the `brep.config` EDN
 authority sync check that weren't exercised by the original Rust test
