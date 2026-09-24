@@ -1,5 +1,5 @@
 (ns brep.mesh-csg-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [brep.mesh-csg :as csg]))
 
 (def cube-indices

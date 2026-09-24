@@ -14,7 +14,7 @@
   volume is its footprint times its height; a box with a rectangular hole is
   the difference of two such products), so these are verification tests, not
   change detectors."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as string]
             [brep.topology :as topo]
             [brep.feature :as f]

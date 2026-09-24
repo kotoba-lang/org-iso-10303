@@ -1,5 +1,5 @@
 (ns brep.polygon-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [brep.polygon :as polygon]))
 
 (defn- triangle-area [vertices [a b c]]
