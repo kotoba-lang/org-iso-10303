@@ -4,7 +4,7 @@
   additional coverage for `brep.kernel` vector math, curve evaluation,
   feature-tree edge cases, and the `brep.config` EDN authority that
   weren't exercised by the original Rust test suite."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [kotoba.lang.text :as str]
             [brep]
             [brep.config :as config]

@@ -1,5 +1,5 @@
 (ns brep.topology-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [brep.topology :as topo]
             [brep.mesh-csg :as csg]
             [brep.feature :as f]))

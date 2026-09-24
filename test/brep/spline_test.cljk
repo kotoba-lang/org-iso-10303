@@ -1,5 +1,5 @@
 (ns brep.spline-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [kotoba.test :refer [deftest is]]
             [brep.spline :as spline]))
 
 (deftest evaluates-rational-curves-and-surfaces
