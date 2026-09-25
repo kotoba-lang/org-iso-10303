@@ -6,7 +6,7 @@
   `brep-test/edn-matches-resource` to verify `brep.config/config` (the
   inline cljc mirror) matches this resource."
   (:require [kotoba.lang.edn :as edn]
-            [clojure.java.io :as io]))
+            [kotoba.io :as io]))
 
 (def resource-path "brep/tessellation.edn")
 
